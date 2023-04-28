@@ -444,6 +444,136 @@ Asm_Hash_Polynom:
     
 We see, rewriting hash function on assembly makes performance even worse then `-O3` standart version. 
     
-### Version 2.1 Optimising strcmp
+### Version 2 Optimising strcmp
     
-The second "narrow neck" of the program is strcmp 
+The second "narrow neck" of the program is strcmp. I will try to improve already improved by compiler version of strcmp
+    
+
+<details> 
+<summary> strcmp improve. First try </summary>
+    
+~~~C++
+    
+void Check_Entry_AVX_STRCMPAVX(Hash_Table* table, const Word words[4], bool entry[4])
+{
+    __m256i avx_hashes = Hash_Polynom_AVX(words);
+    long long* hashes = (long long*) &avx_hashes;
+    for (int i = 0; i < 4; i++)
+    {
+        hashes[i] = ((long long*) &avx_hashes)[i];
+    }
+
+
+    for (long j = 0; j < 4; j++)
+    {
+        long hash_list = hashes[j]%table->hash_amount;
+        Hash_Table_Node* node = table->heads[hash_list].nodes;
+
+        alignas(32) char word_text[32] = "";
+        strncpy(word_text, words[j].word_text, words[j].word_len);
+
+        __m256i text_to_find = _mm256_load_si256((__m256i*)word_text);
+
+        
+        for (size_t i = 0; i < table->heads[hash_list].list_length; i++)
+        {
+            alignas(32) char text_to_check[32] = "";
+            strncpy(text_to_check, node->word->word_text, node->word->word_len);
+            __m256i node_text = _mm256_load_si256((__m256i*)text_to_check);
+            __m256i cmp = _mm256_cmpeq_epi8(text_to_find, node_text);
+            int cmp_mask = (int) _mm256_movemask_epi8(cmp);
+            if (cmp_mask == -1) 
+            {
+                entry[j] = true;
+                break; 
+            }
+
+            node = node->next_node;
+        }
+    }
+}
+
+~~~
+
+</details> 
+    
+    
+| Optimisation   | Elapsed time (s)  | Absolute speeding up | Realative speeding up |
+| :------------: | :---------------: | :------------------: | :-------------------: |
+| Base verison   |      11.1         |   1                  | 1                     |
+| `-O3`          |      8.4          |   1.32               | 1.32                  |
+| AVX hash       |      8.1          |   1.37               | 1.04                  |
+| AVX hash 1 word|      8.4          |   1.32               | 0.96                  |
+| ASM hash       |      8.8          |   1.26               | 0.95                  |
+| AVX + strcmp   |      11.7         |   0.95               | 0.75                  |
+    
+It's hard to even name it "optimisation". Although it was easy to understand that replacing strcmp with strcpy and variety of other instructions is not perfect idea.
+    
+We can notice that all the words in the text has lendth not more then 20 letter. So, every word can be wholly loaded to AVX variables during parsing. In that case we can avoid long loadings from memory.
+    
+<details> 
+<summary> strcmp improve. Second try </summary>
+    
+~~~C++
+bool Check_List_Entry_AVX(Hash_Table_Node* node, const size_t list_length, const Word* word)
+{
+    __m256i text_to_find = *word->avx_text;
+    bool entry = false;
+
+    for (size_t i = 0; i < list_length; i++)
+    {
+        __m256i node_text = *node->word->avx_text;
+        __m256i cmp = _mm256_cmpeq_epi8(text_to_find, node_text);
+        int cmp_mask = (int) _mm256_movemask_epi8(cmp);
+        if (cmp_mask == -1) 
+        {
+            entry = true;
+            break; 
+        }
+
+        node = node->next_node;
+    }
+
+    return entry;
+}
+
+void Check_Entry_AVX_STRCMPAVX_NO_STRCPY(Hash_Table* table, const Word words[4], bool entry[4])
+{
+    __m256i avx_hashes = Hash_Polynom_AVX(words);
+    long long* hashes = (long long*) &avx_hashes;
+    for (int i = 0; i < 4; i++)
+    {
+        hashes[i] = ((long long*) &avx_hashes)[i];
+    }
+
+
+    for (long j = 0; j < 4; j++)
+    {
+        long hash_list = hashes[j]%table->hash_amount;
+        Hash_Table_Node* node = table->heads[hash_list].nodes;
+
+        entry[j] = Check_List_Entry_AVX(node, table->heads[hash_list].list_length, &words[j]);
+    }
+}
+~~~
+    
+</details> 
+
+
+| Optimisation          | Elapsed time (s)  | Absolute speeding up | Realative speeding up |
+| :-------------------: | :---------------: | :------------------: | :-------------------: |
+| Base verison          |      11.1         |   1                  | 1                     |
+| `-O3`                 |      8.4          |   1.32               | 1.32                  |
+| AVX hash              |      8.1          |   1.37               | 1.04                  |
+| AVX hash 1 word       |      8.4          |   1.32               | 0.96                  |
+| ASM hash              |      8.8          |   1.26               | 0.95                  |
+| AVX + strcmp          |      11.7         |   0.95               | 0.75                  |
+| AVX + strcmp no load  |      7.7          |   1.44               | 1.52                  |
+    
+This optimisation definetly reached the result. 
+    
+### Intermediate conclusion
+    
+I optimised two functions using most of the computing resources and improved performance by 44% comparing to base version and 9% comparing to base version compiled with `-O3` flag. 
+    
+Now I will try to make some cheat optimisations.
