@@ -23,11 +23,11 @@ int main()
 
 
     std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
-    kukareku_i_begu_po_vsemu_textu(&text, table_hash_1);
+    //kukareku_i_begu_po_vsemu_textu(&text, table_hash_1);
     std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
     printf ("Elapsed time(ms) standart: %u\n", std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count());
 
-
+/*
     begin = std::chrono::steady_clock::now();
     kukareku_i_begu_po_vsemu_textu(&text, table_hash_1);
     end = std::chrono::steady_clock::now();
@@ -90,8 +90,17 @@ int main()
     end = std::chrono::steady_clock::now();
     printf ("Elapsed time(ms) asm CRC32  strcmp avx no strcpy CRC32: %u\n", std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count());
 
-
+*/
     //Save_Table_Lists_Lengths(table_hash_1, "graphs/csv/7.Polynom hash.csv");
+    Hash_Table_Dtor(table_hash_1);
+
+    table_hash_1 = Hash_Table_Ctor(15000, text.words, text.words_amount, Hash_Polynom);
+
+    begin = std::chrono::steady_clock::now();
+    kukareku_i_begu_po_vsemu_textu_AVX_STRCMPAVX_NOSTRCPY(&text, table_hash_1);
+    end = std::chrono::steady_clock::now();
+    printf ("Elapsed time(ms) avx + strcmp avx no strcpy enlarged: %u\n", std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count());
+
     Hash_Table_Dtor(table_hash_1);
     Free_Text(&text);
 }

@@ -1,12 +1,6 @@
-section .rodata
-
-msg: db "Hello", 10, 0
-
 section .text
 
 global Asm_Hash_Polynom
-
-extern printf
 
 Asm_Hash_Polynom: ;rdi - pointer to Word
 

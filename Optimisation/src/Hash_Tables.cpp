@@ -189,9 +189,7 @@ __m256i Hash_Polynom_AVX_another(const Word* words)
 {
     __m256i pow_k = _mm256_set1_epi64x(1);
     const __m256i k = _mm256_set1_epi64x((long)31);
-    //const __m256i words_lengths = _mm256_set_epi64x(words[3].word_len, words[2].word_len, words[1].word_len, words[0].word_len);
     __m256i hashes = _mm256_set1_epi64x(0);
-    //__m256i letter_num = _mm256_set1_epi64x(0);
     const __m256i just_ones = _mm256_set1_epi64x(1);
     __m256i letters = _mm256_set_epi64x(words[3].word_text[0], words[2].word_text[0], words[1].word_text[0], words[0].word_text[0]);
 
@@ -207,9 +205,6 @@ __m256i Hash_Polynom_AVX_another(const Word* words)
         hashes = _mm256_add_epi64(hashes, cur_letter_term);
         pow_k = _mm256_mul_epi32(pow_k, k);
 
-        //__m256i cmp = _mm256_cmpeq_epi64(letter_num, words_lengths);
-        //letter_num = _mm256_add_epi64(letter_num, _mm256_add_epi64(just_ones, cmp));
-        //long* letter_num_array = (long*) &letter_num;
         letters = _mm256_set_epi64x(words[3].word_text[j+1], words[2].word_text[j+1], words[1].word_text[j+1], words[0].word_text[j+1]);
     }
 
@@ -220,17 +215,12 @@ void Check_Mass_Entry(Hash_Table* table, const Word* words, bool* entry, long am
 {
     for (long i = 0; i < amount; i+=4)
     {
-        bool aaab[4] = {};
-        Word aaaw[4] = {words[i], words[i+1], words[i+2], words[i+3]};
-        Check_Entry_AVX(table, aaaw, aaab);
-        for (int j = 0; j < 4; j++) entry[i+j] = aaab[j];
+        Check_Entry_AVX(table, words + i, entry + i);
     }
 
     long i = (amount/4)*4;
     while (i < amount)
     {
-        printf("%d\n", i);
-        printf("%d. %s\n", i, words[i].word_text);
         entry[i] = Check_Entry(table, &words[i]);
         i++;
     }
