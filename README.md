@@ -133,12 +133,79 @@ So, we see, in our case we should use polynom hash. In the next part of the work
 
 In this part of the work I will optimise search function of the hash table. In this purpose I will analise which parts of the program use most of the computing resources and try to make these parts more efficient. 
 
-I will use callgrind tool and KCachegrind to visualise got data to analise the amount of function calls in different parts of computations. I will use -O3 optimisation flag.
+I will use callgrind tool and KCachegrind to visualise got data to analise the amount of function calls in different parts of computations. 
+
+To increase time of search and to get comparable results I will search for all text words 100 times.
 
 ### Version 0. No optimisations
 
+Let's look at program's performance without any optimisations:
+
+| Optimisation | Elapsed time (s)  | Absolute speeding up | Realative speeding up |
+| :----------: | :---------------: | :------------------: | :-------------------: |
+| Base verison |      11.1         |   1                  | 1                     |
+| `-O3`        |      8.4          |   1.32               | 1.32                  |
+
+In futher measurements I will also use `-O3` compilation flag to get maximum of my functions. Moreover, It's interesting to try to compete with a rather smart compiler and to see, how much can I do to make my programm even more efficient then standart `-O3` version.
+
+Now let's look at callgrind's information: 
+
 <img src="Optimisation/graphs/git/1.png">
 
-According to callgrind, hash count function uses most of the computing resources. Time needed for search for all words in the text is 9.2 seconds.
+According to callgrind, hash count function uses most of the computing resources. I will try to improve this function differet ways.
+
+<details> 
+<summary> Standart search function realisation </summary>
+
+~~~C++
+bool Check_Entry(const Hash_Table* table, const Word* word)
+{
+    long hash_list = ((*table->hash_function)(word))%table->hash_amount;
+    Hash_Table_Node* node = table->heads[hash_list].nodes;
+    bool entry = Check_List_Entry(node, table->heads[hash_list].list_length, word);
+
+    return entry;
+}
+
+bool Check_List_Entry(Hash_Table_Node* node, const size_t list_length, const Word* word)
+{
+    bool entry = false;
+
+    for (size_t i = 0; i < list_length; i++)
+    {
+        if (word->word_len == node->word->word_len)
+        {
+            if (strncmp(word->word_text, node->word->word_text, word->word_len) == 0)
+            {
+                entry = true;
+                break;
+            }
+        }
+
+        node = node->next_node;
+    }
+
+    return entry;
+}
+
+long Hash_Polynom(const Word* word)
+{
+    int k = 31;
+    int pow_k = 1;
+    long hash = 0;
+
+    for (int i = 0; i < word->word_len; i++)
+    {
+        hash += ((long) word->word_text[i]) * pow_k;
+        pow_k *= k;
+    }
+
+    return hash;
+}
+~~~
+    
+</details>
+
 
 ### Version 1.1 Hash count paralleling with AVX instructions
+
