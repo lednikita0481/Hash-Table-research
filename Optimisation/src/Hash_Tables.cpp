@@ -20,21 +20,26 @@ struct Hash_Table
     long (* hash_function) (const Word* word);
 };
 
-/*
-void Hash_Table_Ctor(Hash_Table* table, size_t size, Text* text, long (* hash_function) (const Word* word))
+void Word_Ctor(Word* word, const char* text, int lendth)
 {
-    table->hash_amount = size;
-    table->heads = (Hash_Table_Head*) calloc(size, sizeof(Hash_Table_Head));
-    table->hash_function = hash_function;
-
-    for (long i = 0; i < text->words_amount; i++)
+    word->word_text = (char*) calloc(32, sizeof(char));
+    if (lendth < 0)
     {
-        //int hash_list = ((*hash_function)(&text->words[i]))%size;
-        Add_Node_To_List(table, &text->words[i]);
-        //printf("%ld of %ld\n", i, text->words_amount);
+        strncpy(word->word_text, text, 31);
+        word->word_len = strlen(word->word_text);
     }
+
+    else
+    {
+        if (lendth > 31) lendth = 31;
+        strncpy(word->word_text, text, lendth);
+        word->word_len = lendth;
+    }
+
+    __m256i* avx_text = (__m256i*) aligned_alloc(32, sizeof(__m256i));
+    *avx_text = _mm256_loadu_si256((__m256i*) word->word_text);
+    word->avx_text = avx_text;
 }
-*/
 
 Hash_Table* Hash_Table_Ctor(size_t size, Word* words, long words_amount, long (* hash_function) (const Word* word))
 {
@@ -120,29 +125,20 @@ bool Check_List_Entry(Hash_Table_Node* node, const size_t list_length, const Wor
     return entry;
 }
 
-bool Check_Entry(const Hash_Table* table, const char* word)
+bool Check_Entry(const Hash_Table* table, const Word* word)
 {
-    Word struct_word = {word, strlen(word)};
-    long hash_list = ((*table->hash_function)(&struct_word))%table->hash_amount;
+    long hash_list = ((*table->hash_function)(word))%table->hash_amount;
     Hash_Table_Node* node = table->heads[hash_list].nodes;
-    bool entry = Check_List_Entry(node, table->heads[hash_list].list_length, &struct_word);
+    bool entry = Check_List_Entry(node, table->heads[hash_list].list_length, word);
 
     return entry;
 }
 
 //------------------------------OPTIMIZATION------------------------------------------------------------
 
-void Check_Entry_AVX(Hash_Table* table, const char* words[4], bool entry[4])
+void Check_Entry_AVX(Hash_Table* table, const Word words[4], bool entry[4])
 {
-    Word struct_words[4] = {};
-    for (int i = 0; i < 4; i++)
-    {
-        struct_words[i].word_len = strlen(words[i]);
-        struct_words[i].word_text = words[i];
-        entry[i] = false;
-    }
-
-    __m256i avx_hashes = Hash_Polynom_AVX(struct_words);
+    __m256i avx_hashes = Hash_Polynom_AVX(words);
     long long* hashes = (long long*) &avx_hashes;
     for (int i = 0; i < 4; i++)
     {
@@ -154,7 +150,7 @@ void Check_Entry_AVX(Hash_Table* table, const char* words[4], bool entry[4])
     {
         long hash_list = hashes[j]%table->hash_amount;
         Hash_Table_Node* node = table->heads[hash_list].nodes;
-        entry[j] = Check_List_Entry(node, table->heads[hash_list].list_length, &struct_words[j]);
+        entry[j] = Check_List_Entry(node, table->heads[hash_list].list_length, &words[j]);
     }
 }
 
@@ -189,29 +185,109 @@ __m256i Hash_Polynom_AVX(const Word* words)
     return hashes;
 }
 
-bool Check_Entry_ASM_hash(const Hash_Table* table, const char* word)
+__m256i Hash_Polynom_AVX_another(const Word* words)
 {
-    Word struct_word = {word, strlen(word)};
+    __m256i pow_k = _mm256_set1_epi64x(1);
+    const __m256i k = _mm256_set1_epi64x((long)31);
+    //const __m256i words_lengths = _mm256_set_epi64x(words[3].word_len, words[2].word_len, words[1].word_len, words[0].word_len);
+    __m256i hashes = _mm256_set1_epi64x(0);
+    //__m256i letter_num = _mm256_set1_epi64x(0);
+    const __m256i just_ones = _mm256_set1_epi64x(1);
+    __m256i letters = _mm256_set_epi64x(words[3].word_text[0], words[2].word_text[0], words[1].word_text[0], words[0].word_text[0]);
 
-    long hash_list = Asm_Hash_Polynom(&struct_word)%table->hash_amount;
+    long max_len = 0;
+    for (int j = 0; j < 4; j ++)
+    {
+        if (words[j].word_len > max_len) max_len = words[j].word_len;
+    }
+
+    for (int j = 0; j < max_len; j ++)
+    {
+        __m256i cur_letter_term = _mm256_mul_epi32(pow_k, letters);
+        hashes = _mm256_add_epi64(hashes, cur_letter_term);
+        pow_k = _mm256_mul_epi32(pow_k, k);
+
+        //__m256i cmp = _mm256_cmpeq_epi64(letter_num, words_lengths);
+        //letter_num = _mm256_add_epi64(letter_num, _mm256_add_epi64(just_ones, cmp));
+        //long* letter_num_array = (long*) &letter_num;
+        letters = _mm256_set_epi64x(words[3].word_text[j+1], words[2].word_text[j+1], words[1].word_text[j+1], words[0].word_text[j+1]);
+    }
+
+    return hashes;
+}
+
+void Check_Mass_Entry(Hash_Table* table, const Word* words, bool* entry, long amount)
+{
+    for (long i = 0; i < amount; i+=4)
+    {
+        bool aaab[4] = {};
+        Word aaaw[4] = {words[i], words[i+1], words[i+2], words[i+3]};
+        Check_Entry_AVX(table, aaaw, aaab);
+        for (int j = 0; j < 4; j++) entry[i+j] = aaab[j];
+    }
+
+    long i = (amount/4)*4;
+    while (i < amount)
+    {
+        printf("%d\n", i);
+        printf("%d. %s\n", i, words[i].word_text);
+        entry[i] = Check_Entry(table, &words[i]);
+        i++;
+    }
+}
+
+long Hash_Polynom_AVX_one_word(const Word* word)
+{
+    long k = 31;
+    long cur_pow = 1;
+    alignas(32) long pow_k[4] = {};
+    __m256i hashes = _mm256_set1_epi64x(0);
+    long hash = 0;
+
+    for (int i = 0; i < word->word_len; i+=4)
+    {
+        for (int j = 0; j < 4; j++)
+        {
+            pow_k[j] = cur_pow;
+            cur_pow *= k;
+        }
+
+        __m256i avx_pow = _mm256_load_si256((__m256i*)pow_k);
+        __m128i letters_loaded = _mm_load_si128((__m128i*)((char*)word->avx_text) + i);
+        __m256i letters = _mm256_cvtepi8_epi64(letters_loaded);
+        __m256i hash_mass_avx = _mm256_mul_epi32(letters, avx_pow);
+        hashes = _mm256_add_epi64(hash_mass_avx, hashes);
+    }
+
+    long long* hash_mass = (long long*) &hashes;
+    for (int j = 0; j < 4; j++) hash+=hash_mass[j];
+
+    return hash;
+}
+
+bool Check_Entry_AVX_One_word(const Hash_Table* table, const Word* word)
+{
+    long hash_list = Hash_Polynom_AVX_one_word(word)%table->hash_amount;
 
     Hash_Table_Node* node = table->heads[hash_list].nodes;
-    bool entry = Check_List_Entry(node, table->heads[hash_list].list_length, &struct_word);
+    bool entry = Check_List_Entry(node, table->heads[hash_list].list_length, word);
 
     return entry;
 }
 
-void Check_Entry_AVX_STRCMPAVX(Hash_Table* table, const char* words[4], bool entry[4])
+bool Check_Entry_ASM_hash(const Hash_Table* table, const Word* word)
 {
-    Word struct_words[4] = {};
-    for (int i = 0; i < 4; i++)
-    {
-        struct_words[i].word_len = strlen(words[i]);
-        struct_words[i].word_text = words[i];
-        entry[i] = false;
-    }
+    long hash_list = Asm_Hash_Polynom(word)%table->hash_amount;
 
-    __m256i avx_hashes = Hash_Polynom_AVX(struct_words);
+    Hash_Table_Node* node = table->heads[hash_list].nodes;
+    bool entry = Check_List_Entry(node, table->heads[hash_list].list_length, word);
+
+    return entry;
+}                                                                                                                                
+
+void Check_Entry_AVX_STRCMPAVX(Hash_Table* table, const Word words[4], bool entry[4])
+{
+    __m256i avx_hashes = Hash_Polynom_AVX(words);
     long long* hashes = (long long*) &avx_hashes;
     for (int i = 0; i < 4; i++)
     {
@@ -225,7 +301,7 @@ void Check_Entry_AVX_STRCMPAVX(Hash_Table* table, const char* words[4], bool ent
         Hash_Table_Node* node = table->heads[hash_list].nodes;
 
         alignas(32) char word_text[32] = "";
-        strncpy(word_text, struct_words[j].word_text, struct_words[j].word_len);
+        strncpy(word_text, words[j].word_text, words[j].word_len);
 
         __m256i text_to_find = _mm256_load_si256((__m256i*)word_text);
 
@@ -245,6 +321,22 @@ void Check_Entry_AVX_STRCMPAVX(Hash_Table* table, const char* words[4], bool ent
 
             node = node->next_node;
         }
+    }
+}
+
+void Check_Mass_Entry_AVX_STRCMPAVX(Hash_Table* table, const Word* words, bool* entry, long amount)
+{
+    for (long i = 0; i < amount/4; i++)
+    {
+        Check_Entry_AVX_STRCMPAVX(table, words + 4*i, entry + 4*i);
+    }
+
+    long i = (amount/4)*4;
+
+    while (i < amount)
+    {
+        entry[i] = Check_Entry(table, &words[i]);
+        i++;
     }
 }
 
@@ -270,9 +362,9 @@ bool Check_List_Entry_AVX(Hash_Table_Node* node, const size_t list_length, const
     return entry;
 }
 
-void Check_Entry_AVX_STRCMPAVX_NO_STRCPY(Hash_Table* table, const Word* words[4], bool entry[4])
+void Check_Entry_AVX_STRCMPAVX_NO_STRCPY(Hash_Table* table, const Word words[4], bool entry[4])
 {
-    __m256i avx_hashes = Hash_Polynom_AVX_aaa(words);
+    __m256i avx_hashes = Hash_Polynom_AVX(words);
     long long* hashes = (long long*) &avx_hashes;
     for (int i = 0; i < 4; i++)
     {
@@ -285,7 +377,23 @@ void Check_Entry_AVX_STRCMPAVX_NO_STRCPY(Hash_Table* table, const Word* words[4]
         long hash_list = hashes[j]%table->hash_amount;
         Hash_Table_Node* node = table->heads[hash_list].nodes;
 
-        entry[j] = Check_List_Entry_AVX(node, table->heads[hash_list].list_length, words[j]);
+        entry[j] = Check_List_Entry_AVX(node, table->heads[hash_list].list_length, &words[j]);
+    }
+}
+
+void Check_Mass_Entry_AVX_STRCMPAVX_NO_STRCPY(Hash_Table* table, const Word* words, bool* entry, long amount)
+{
+    for (long i = 0; i < amount/4; i++)
+    {
+        Check_Entry_AVX_STRCMPAVX_NO_STRCPY(table, words + 4*i, entry + 4*i);
+    }
+
+    long i = (amount/4)*4;
+
+    while (i < amount)
+    {
+        entry[i] = Check_Entry(table, &words[i]);
+        i++;
     }
 }
 
@@ -371,7 +479,12 @@ bool Check_Entry_ASM_CRC32_hash_STRCMPAVX_NOSTRCPY(const Hash_Table* table, Word
 }
 
 //------------------------------------------------------------------------------------------------------------------------------------
-
+void Word_Dtor(Word* word)
+{
+    free(word->avx_text);
+    free(word->word_text);
+    word->word_len = 0;
+}
 
 void Hash_Table_Dtor(Hash_Table* table)
 {

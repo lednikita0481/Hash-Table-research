@@ -42,7 +42,7 @@ void Split_By_Words(Text* text)
     text->words_amount = words_amount;
     text->words = (Word*) calloc (words_amount, sizeof(Word));
 
-    text->words[0].word_text = text->buffer;
+    char* prev_buffer = text->buffer;
 
     int word = 1;
     i = 1;
@@ -50,30 +50,19 @@ void Split_By_Words(Text* text)
     {
         if (!isalpha(text->buffer[i]))
         {
-            text->words[word-1].word_len = text->buffer + i - text->words[word-1].word_text;
-            char* temp_buff = (char*) calloc(32, sizeof(char));
-            strncpy(temp_buff, text->words[word-1].word_text, text->words[word-1].word_len);
-            text->words[word-1].word_text = temp_buff;
-
-            __m256i* avx_text = (__m256i*) aligned_alloc(32, sizeof(__m256i));
-            *avx_text = _mm256_loadu_si256((__m256i*) temp_buff);
-            text->words[word-1].avx_text = avx_text;
+            int word_len = text->buffer + i - prev_buffer;
+            Word_Ctor(&text->words[word-1], prev_buffer, word_len);
 
             while (!isalpha(text->buffer[i]) && i < text->text_length) i++;
             i--;
-            text->words[word].word_text = text->buffer + i + 1;
+            prev_buffer = text->buffer + i + 1;
             word++;
         }
         i++;
     }
 
-    text->words[word-1].word_len = text->buffer + text->text_length - text->words[word-1].word_text;
-    char* temp_buff = (char*) calloc(32, sizeof(char));
-    text->words[word-1].word_text = temp_buff;
-
-    __m256i* avx_text = (__m256i*) aligned_alloc(32, sizeof(__m256i));
-    *avx_text = _mm256_loadu_si256((__m256i*) temp_buff);
-    text->words[word-1].avx_text = avx_text;
+    int word_len = text->buffer + text->text_length - prev_buffer;
+    Word_Ctor(&text->words[word-1], prev_buffer, word_len);
 
     
 /*
@@ -103,8 +92,7 @@ void Free_Text(Text* text)
 {
     for (int i = 0; i < text->words_amount; i++)
     {
-        free((char*)text->words[i].word_text);
-        text->words[i].word_len = 0;
+        Word_Dtor(&text->words[i]);
     }
 
     free(text->words);
