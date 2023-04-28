@@ -127,3 +127,18 @@ long Hash_Polynom(const Word* word)
 }
 ~~~
 So, we see, in our case we should use polynom hash. In the next part of the work I will try to optimise the hash table for chosen function.
+
+
+## Part 2. Optimisation of hash table
+
+In this part of the work I will optimise search function of the hash table. In this purpose I will analise which parts of the program use most of the computing resources and try to make these parts more efficient. 
+
+I will use callgrind tool and KCachegrind to visualise got data to analise the amount of function calls in different parts of computations. I will use -O3 optimisation flag.
+
+### Version 0. No optimisations
+
+<img src="Optimisation/graphs/git/1.png">
+
+According to callgrind, hash count function uses most of the computing resources. Time needed for search for all words in the text is 9.2 seconds.
+
+### Version 1.1 Hash count paralleling with AVX instructions
