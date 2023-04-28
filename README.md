@@ -444,7 +444,7 @@ Asm_Hash_Polynom:
     
 We see, rewriting hash function on assembly makes performance even worse then `-O3` standart version. 
     
-### Version 2 Optimising strcmp
+### Version 2. Optimising strcmp
     
 The second "narrow neck" of the program is strcmp. I will try to improve already improved by compiler version of strcmp
     
@@ -577,3 +577,93 @@ This optimisation definetly reached the result.
 I optimised two functions using most of the computing resources and improved performance by 44% comparing to base version and 9% comparing to base version compiled with `-O3` flag. 
     
 Now I will try to make some cheat optimisations.
+
+
+### Version 3. Changing hash function.
+
+I tried to improve the performance of polynom hash function. It had some effect, but it's also has sence to use hash function, which can be called from assembly directly. This is CRC32. I will not describe it's method of work, you can read about it [here](https://en.wikipedia.org/wiki/Cyclic_redundancy_check#CRCs_and_data_integrity). It's main advantage is the ability to call it directly from assembly. Certainly, hash table needs to be rebuilt with use of this function.
+
+So we can create hash function with inline assembly:
+
+<details> 
+<summary> CRC32 </summary>
+
+~~~C++
+
+long CRC32_Hash(const Word* word)
+{
+    long hash = 0;
+    const char* text = word->word_text;
+    asm(
+        R"(
+            .intel_syntax noprefix
+            xor rax, rax
+            crc32q rax, qword ptr [%1 + 0x00]
+            crc32q rax, qword ptr [%1 + 0x08]
+            crc32q rax, qword ptr [%1 + 0x10]
+            mov %1, rax
+            .att_syntax prefix
+        )"
+        :"=r"(hash)
+        :"r"(text)
+        :"rax");
+    return hash;
+}
+
+~~~
+
+</details> 
+
+| Optimisation          | Elapsed time (s)  | Absolute speeding up | Realative speeding up |
+| :-------------------: | :---------------: | :------------------: | :-------------------: |
+| Base verison          |      11.1         |   1                  | 1                     |
+| `-O3`                 |      8.4          |   1.32               | 1.32                  |
+| AVX hash              |      8.1          |   1.37               | 1.04                  |
+| AVX hash 1 word       |      8.4          |   1.32               | 0.96                  |
+| ASM hash              |      8.8          |   1.26               | 0.95                  |
+| AVX + strcmp          |      11.7         |   0.95               | 0.75                  |
+| AVX + strcmp no load  |      7.7          |   1.44               | 1.52                  |
+| CRC32                 |      8.0          |   1.39               | 0.96                  |
+
+We see, changing hash function improves the performance. Now we also can add our optimised strcmp function:
+
+| Optimisation          | Elapsed time (s)  | Absolute speeding up | Realative speeding up |
+| :-------------------: | :---------------: | :------------------: | :-------------------: |
+| Base verison          |      11.1         |   1                  | 1                     |
+| `-O3`                 |      8.4          |   1.32               | 1.32                  |
+| AVX hash              |      8.1          |   1.37               | 1.04                  |
+| AVX hash 1 word       |      8.4          |   1.32               | 0.96                  |
+| ASM hash              |      8.8          |   1.26               | 0.95                  |
+| AVX + strcmp          |      11.7         |   0.95               | 0.75                  |
+| AVX + strcmp no load  |      7.7          |   1.44               | 1.52                  |
+| CRC32                 |      8.0          |   1.39               | 0.96                  |
+| CRC32 + strcmp no load|      7.7          |   1.44               | 1.04                  |
+
+We got the same result as with optimised AVX version of polynom hash function with improved strcmp.
+
+### Version 4. Increase hash table size
+
+During this work I tried to improve the performance in finding words in hash table lists with non-zero amount of collisions. Final optimisation I will do is obvious and even uninteresting. I will increase hash table size! Now it has on average 20-30 collisions a list, so we should expect that new hash table will have 2-3 collisions a list.
+
+
+| Optimisation          | Elapsed time (s)  | Absolute speeding up | Realative speeding up |
+| :-------------------: | :---------------: | :------------------: | :-------------------: |
+| Base verison          |      11.1         |   1                  | 1                     |
+| `-O3`                 |      8.4          |   1.32               | 1.32                  |
+| AVX hash              |      8.1          |   1.37               | 1.04                  |
+| AVX hash 1 word       |      8.4          |   1.32               | 0.96                  |
+| ASM hash              |      8.8          |   1.26               | 0.95                  |
+| AVX + strcmp          |      11.7         |   0.95               | 0.75                  |
+| AVX + strcmp no load  |      7.7          |   1.44               | 1.52                  |
+| CRC32                 |      8.0          |   1.39               | 0.96                  |
+| CRC32 + strcmp no load|      7.7          |   1.44               | 1.04                  |
+| AVX + strcmp no load + enlarged hash table  |      4.9          |   2.26               | 1.57                  |
+
+No we can look at callgrind's data and see that all calls are hash function. It means that amount of collisions in hash table is low enough and strcmp function is called really seldom.
+
+<img src="Optimisation/graphs/git/2.png">
+
+
+## Conclusion
+
+During this work I researched several hash functions and tried to improve hash table's performance with different kind of optimisations. It's clear now that compilation with `-O3` highly improves the performance without any additional actions from programmer. But, nevertheless, some additional enhances can be done to slightly speed up the program if it's neccessary. The best method in our case is using SIMD instructions. Unfortunately, in that work it was difficult to implement such improvements without a big amount of memory references, but in [my previous works](https://github.com/lednikita0481/SIMD) I showed some situations where using SIMD instructions can be much more efficient. So, it's clear that programmer has to be able to analyse the code and find the parts of the program which can be enhanced and give better performance.
