@@ -202,10 +202,248 @@ long Hash_Polynom(const Word* word)
 
     return hash;
 }
+
 ~~~
-    
+
 </details>
 
 
 ### Version 1.1 Hash count paralleling with AVX instructions
+    
+Firstly, I thought that hash could be computed for several words at the same time. So, I implemented AVX version of the hash function. It gets 4 words at the same time and counts $WordText_{i} \cdot k^{i}$ for all taken words. I implemented several versions of that function, under the spoiler you can find the best one. It takes words as structures with text buffers of one common lendth, that is more or equal then the lendth of the longest word in the text. Such realisation is fast enough but implies more actions during parsing.
+    
+<details> 
+<summary> Search function realisation with AVX </summary>
 
+~~~C++
+void Check_Mass_Entry(Hash_Table* table, const Word* words, bool* entry, long amount)
+{
+    for (long i = 0; i < amount; i+=4)
+    {
+        Check_Entry_AVX(table, words + i, entry + i);
+    }
+
+    long i = (amount/4)*4;
+    while (i < amount)
+    {
+        entry[i] = Check_Entry(table, &words[i]);
+        i++;
+    }
+}
+    
+void Check_Entry_AVX(Hash_Table* table, const Word words[4], bool entry[4])
+{
+    __m256i avx_hashes = Hash_Polynom_AVX(words);
+    long long* hashes = (long long*) &avx_hashes;
+    for (int i = 0; i < 4; i++)
+    {
+        hashes[i] = ((long long*) &avx_hashes)[i];
+    }
+
+
+    for (long j = 0; j < 4; j++)
+    {
+        long hash_list = hashes[j]%table->hash_amount;
+        Hash_Table_Node* node = table->heads[hash_list].nodes;
+        entry[j] = Check_List_Entry(node, table->heads[hash_list].list_length, &words[j]);
+    }
+}
+    
+__m256i Hash_Polynom_AVX(const Word* words)
+{
+    __m256i pow_k = _mm256_set1_epi64x(1);
+    const __m256i k = _mm256_set1_epi64x((long)31);
+    __m256i hashes = _mm256_set1_epi64x(0);
+    const __m256i just_ones = _mm256_set1_epi64x(1);
+    __m256i letters = _mm256_set_epi64x(words[3].word_text[0], words[2].word_text[0], words[1].word_text[0], words[0].word_text[0]);
+
+    long max_len = 0;
+    for (int j = 0; j < 4; j ++)
+    {
+        if (words[j].word_len > max_len) max_len = words[j].word_len;
+    }
+
+    for (int j = 0; j < max_len; j ++)
+    {
+        __m256i cur_letter_term = _mm256_mul_epi32(pow_k, letters);
+        hashes = _mm256_add_epi64(hashes, cur_letter_term);
+        pow_k = _mm256_mul_epi32(pow_k, k);
+
+        letters = _mm256_set_epi64x(words[3].word_text[j+1], words[2].word_text[j+1], words[1].word_text[j+1], words[0].word_text[j+1]);
+    }
+
+    return hashes;
+}
+                                
+
+bool Check_List_Entry(Hash_Table_Node* node, const size_t list_length, const Word* word)
+{
+    bool entry = false;
+
+    for (size_t i = 0; i < list_length; i++)
+    {
+        if (word->word_len == node->word->word_len)
+        {
+            if (strncmp(word->word_text, node->word->word_text, word->word_len) == 0)
+            {
+                entry = true;
+                break;
+            }
+        }
+
+        node = node->next_node;
+    }
+
+    return entry;
+}
+    
+
+~~~
+    
+</details>
+    
+    
+| Optimisation | Elapsed time (s)  | Absolute speeding up | Realative speeding up |
+| :----------: | :---------------: | :------------------: | :-------------------: |
+| Base verison |      11.1         |   1                  | 1                     |
+| `-O3`        |      8.4          |   1.32               | 1.32                  |
+| AVX hash     |      8.1          |   1.37               | 1.04                  |
+    
+We see, our optimisation improves the performance, but not 4 times. It happened due to a plenty of memory references. Unfortunately, it was difficult for me to implement such algothm that needs only one load from memory.
+    
+
+### Version 1.2 Hash count using AVX instruction for a single word
+    
+After previous optimisation I also thought to try to count 4 products of $WordText_{i} \cdot k^{i}$, but for one word for 4 letters in one time. You can find the implementation under the spoiler
+    
+<details> 
+<summary> Hash function realisation with AVX for 1 word </summary>
+    
+~~~C++
+long Hash_Polynom_AVX_one_word(const Word* word)
+{
+    long k = 31;
+    long cur_pow = 1;
+    alignas(32) long pow_k[4] = {};
+    __m256i hashes = _mm256_set1_epi64x(0);
+    long hash = 0;
+
+    for (int i = 0; i < word->word_len; i+=4)
+    {
+        for (int j = 0; j < 4; j++)
+        {
+            pow_k[j] = cur_pow;
+            cur_pow *= k;
+        }
+
+        __m256i avx_pow = _mm256_load_si256((__m256i*)pow_k);
+        __m128i letters_loaded = _mm_load_si128((__m128i*)((char*)word->avx_text) + i);
+        __m256i letters = _mm256_cvtepi8_epi64(letters_loaded);
+        __m256i hash_mass_avx = _mm256_mul_epi32(letters, avx_pow);
+        hashes = _mm256_add_epi64(hash_mass_avx, hashes);
+    }
+
+    long long* hash_mass = (long long*) &hashes;
+    for (int j = 0; j < 4; j++) hash+=hash_mass[j];
+
+    return hash;
+}
+~~~
+
+</details>
+    
+| Optimisation   | Elapsed time (s)  | Absolute speeding up | Realative speeding up |
+| :------------: | :---------------: | :------------------: | :-------------------: |
+| Base verison   |      11.1         |   1                  | 1                     |
+| `-O3`          |      8.4          |   1.32               | 1.32                  |
+| AVX hash       |      8.1          |   1.37               | 1.04                  |
+| AVX hash 1 word|      8.4          |   1.32               | 0.96                  |
+    
+We see, this optimisation has no effect. But it at least doesn't slow down the programm.
+    
+### Version 1.3 Hash count. ASM realisation
+    
+After previous try I decided to implement assembler version of hash function. You can see it under the spoiler
+    
+<details> 
+<summary> Hash function realisation with ASM </summary>
+    
+~~~asm
+Asm_Hash_Polynom: 
+
+    push rdi
+    push rsi
+    push rbx
+    push rcx
+    push r8
+    push r9
+    push r10
+
+    mov rsi, [rdi]
+    mov rbx, 0
+    mov bl, byte [rsi]  
+    inc rsi
+
+    mov rcx, qword [rdi+8]   
+    ;dec rcx
+
+
+    mov r9, 31          
+    mov r8, 1            
+
+    mov r10, 0           
+
+    cmp rcx, 1
+    jb .no_need
+
+    xor rdx, rdx
+  .zaloopa:
+    mov rax, r8
+    imul ebx             
+    rol rdx, 32
+    add rax, rdx         
+    xor rdx, rdx
+    
+    add r10, rax         
+    xor rax, rax
+    
+    mov rax, r8
+    mov rbx, r9
+    imul ebx             
+    xor rdx, rdx
+    mov r8, rax         
+
+    xor rbx, rbx
+    mov bl, byte [rsi]
+    inc rsi
+
+    loop .zaloopa
+
+  .no_need:
+    mov rax, r10
+
+    pop r10
+    pop r9
+    pop r8
+    pop rcx 
+    pop rbx
+    pop rsi
+    pop rdi
+    ret
+~~~
+    
+</details> 
+    
+| Optimisation   | Elapsed time (s)  | Absolute speeding up | Realative speeding up |
+| :------------: | :---------------: | :------------------: | :-------------------: |
+| Base verison   |      11.1         |   1                  | 1                     |
+| `-O3`          |      8.4          |   1.32               | 1.32                  |
+| AVX hash       |      8.1          |   1.37               | 1.04                  |
+| AVX hash 1 word|      8.4          |   1.32               | 0.96                  |
+| ASM hash       |      8.8          |   1.26               | 0.95                  |
+    
+We see, rewriting hash function on assembly makes performance even worse then `-O3` standart version. 
+    
+### Version 2.1 Optimising strcmp
+    
+The second "narrow neck" of the program is strcmp 
