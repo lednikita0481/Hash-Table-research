@@ -1,4 +1,4 @@
-# Laboratory work. Hash functions research and Hash table optimisation.
+# Hash functions research and Hash table optimisation.
 
 ## Goals:
 - To implement a hash table
@@ -6,7 +6,7 @@
 - To research the hash table and implement at least 3 optimisations different ways
 
 ## Tools
-Laptop Honor Magicbook 15 with AMD Ryzen™ 5 5500U, Linux Mint x64 OS, perf, g++ compiler, NASM assembly.
+Laptop Honor Magicbook 15 with AMD Ryzen™ 5 5500U, Linux Mint x64 OS, callgrind, g++ compiler, NASM assembly.
 
 ## Theory reference
 **Hash table** is a data structure. It stores all its elements as a pair of key and value. Key is a unique number for value indexing. 
