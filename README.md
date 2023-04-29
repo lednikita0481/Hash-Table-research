@@ -126,7 +126,7 @@ long Hash_Polynom(const Word* word)
     return hash;
 }
 ~~~
-So, we see, in our case, we should use a polynom hash. In the next part of the work I will try to optimise the hash table for chosen function.
+So, we see, in our case, we should use a polynom hash due to uniform distribution and low dispersion. In the next part of the work I will try to optimise the hash table for chosen function.
 
 
 ## Part 2. Optimisation of hash table
