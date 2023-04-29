@@ -3,29 +3,29 @@
 ## Goals:
 - To implement a hash table
 - To test several hash functions for distribution uniformity
-- To research the hash table and implement at least 3 optimisations different ways
+- To research the hash table and implement at least 3 optimisations in different ways
 
 ## Tools
 Laptop Honor Magicbook 15 with AMD Ryzen™ 5 5500U, Linux Mint x64 OS, callgrind, g++ compiler, NASM assembly.
 
 ## Theory reference
-**Hash table** is a data structure. It stores all its elements as a pair of key and value. Key is a unique number for value indexing. 
-Hash table has several lists, in wich data is stored. List number is calculated with **hash function**. It takes the key and return the list number, in wich we store the value.
+**Hash table** is a data structure. It stores all its elements as a pair of keys and values. The key is a unique number for value indexing. 
+The hash table has several lists, in which data is stored. The list number is calculated with the **hash function**. It takes the key and returns the list number, in which we store the value.
 
-If hash function returns a number of already used list for a new value, **collision** occures. Such situations can be handled different ways. I used chain method.
-The idea of it is that elements with the same hash are stored in linked list:
+If the hash function returns a number of already used list for a new value, **collision** occurs. Such situations can be handled in different ways. I used the chain method.
+The idea of it is that elements with the same hash are stored in a linked list:
 <img src="Optimisation/graphs/hash table.jpeg">
 
-If we use good hash function, it returns different list number for different keys, so data becomes distributed uniformly across the table. In this way, 
-hash table becomes a useful instrument to insert or find a value quickly. First part of my work is exactly researching some different hash functions.
+If we use a good hash function, it returns different list numbers for different keys, so data becomes distributed uniformly across the table. In this way, 
+our hash table becomes a useful instrument to insert or find a value quickly. The first part of my work is exactly researching some different hash functions.
 
 ## Part 1. Hash functions research
 
-To show the result in undestandable form, I will make graphs of the dependance of the collisions amount on list number fo every of analyzed function.
+To show the result in an understandable form, I will make graphs of the dependence of the amount of the collision on the list number for every analyzed function.
 <img src="No optimisation/graphs/graphs.png">
 
 ### 1. Returns 1
-You can hardly ever imagine hash function worse then this. It vanishes all the sence of hash table. Was implemented only for educational purposes.
+You can hardly ever imagine a hash function worse than this. It vanishes all the sense of hash tables. Was implemented only for educational purposes.
 > Dispersion = 597962
 ~~~C++
 long Hash_Just_One(const Word* word)
@@ -34,7 +34,7 @@ long Hash_Just_One(const Word* word)
 }
 ~~~
 
-### 2. First letter ASCII code
+### 2. First-letter ASCII code
 This function returns just the ASCII code of the first letter. Really bad function.
 > Dispersion = 21777
 ~~~C++
@@ -46,7 +46,7 @@ long Hash_Ascii(const Word* word)
 
 
 ### 3. strlen
-This hash fuction returns the lendth of the input word. Average English word has 5 letters, so hash table also contains several lists with a plenty of collisions and many empty list.
+This hash function returns the length of the input word. An average English word has 5 letters, so the hash table also contains several lists with plenty of collisions and many empty lists.
 > Dispersion = 79418
 ~~~C++
 long Hash_Strlen(const Word* word)
@@ -55,8 +55,8 @@ long Hash_Strlen(const Word* word)
 }
 ~~~
 
-### 4. ASCII summ
-This hash function returns the summ of ASCII codes of every letter in the word. It's much better then previous ones, but its usability is limited. The function most commonly returns value from 400 to 1000, and these values are distributed not uniformly. 
+### 4. ASCII sum
+This hash function returns the sum of the ASCII codes of every letter in the word. It's much better than previous ones, but its usability is limited. The function most commonly returns values from 400 to 1000, and these values are distributed not uniformly. 
 > Dispersion = 710
 ~~~C++
 long Hash_Ascii_Sum(const Word* word)
@@ -72,7 +72,7 @@ long Hash_Ascii_Sum(const Word* word)
 ~~~
 
 ### 5. ROL
-This hash function XORs current hash value, rotated left for 1 bit, with current letter. This is pretty good.
+This hash function XORs current hash value, rotated left for 1 bit, with a current letter. This is pretty good.
 > Dispersion = 51
 ~~~C++
 long ROL(long num, int shift) {return (num << shift) | (num >> (sizeof(long) - shift));}
@@ -90,7 +90,7 @@ long Hash_Rol(const Word* word)
 ~~~
 
 ### 6. ROR
-This function has the same algorithm as a previous one except for rotation right against left. Unexpectedly, there are some picks of the collision amounts, so this function is worse in our case then ROL.
+This function has the same algorithm as the previous one except for rotation right against left. Unexpectedly, there are some picks of the collision amounts, so this function is worse in our case than ROL.
 > Dispersion = 115
 ~~~C++
 long ROR(long num, int shift) {return (num >> shift) | (num << (sizeof(long) - shift));}
@@ -108,7 +108,7 @@ long Hash_Ror(const Word* word)
 ~~~
 
 ### 7. Polynom hash
-This function multiplies ASCII code of every word letter \by the corresponding constant degree. So, $HASH_{n+1} = HASH_{n} + WordText_{n+1} \cdot k^{n+1}$
+This function multiplies the ASCII code of every word letter \by the corresponding constant degree. So, $HASH_{n+1} = HASH_{n} + WordText_{n+1} \cdot k^{n+1}$
 > Dispersion = 28
 ~~~C++
 long Hash_Polynom(const Word* word)
@@ -126,33 +126,33 @@ long Hash_Polynom(const Word* word)
     return hash;
 }
 ~~~
-So, we see, in our case we should use polynom hash. In the next part of the work I will try to optimise the hash table for chosen function.
+So, we see, in our case, we should use a polynom hash. In the next part of the work I will try to optimise the hash table for chosen function.
 
 
 ## Part 2. Optimisation of hash table
 
-In this part of the work I will optimise search function of the hash table. In this purpose I will analise which parts of the program use most of the computing resources and try to make these parts more efficient. 
+In this part of the work I will optimise the search function of the hash table. For this purpose, I will analyze which parts of the program use most of the computing resources and try to make these parts more efficient. 
 
-I will use callgrind tool and KCachegrind to visualise got data to analise the amount of function calls in different parts of computations. 
+I will use callgrind tool and KCachegrind to visualize got data to analyze the number of function calls in different parts of computations. 
 
-To increase time of search and to get comparable results I will search for all text words 100 times.
+To increase the time of search and to get comparable results I will search for all text words 100 times.
 
 ### Version 0. No optimisations
 
-Let's look at program's performance without any optimisations:
+Let's look at the program's performance without any optimisations:
 
 | Optimisation | Elapsed time (s)  | Absolute speeding up | Realative speeding up |
 | :----------: | :---------------: | :------------------: | :-------------------: |
 | Base verison |      11.1         |   1                  | 1                     |
 | `-O3`        |      8.4          |   1.32               | 1.32                  |
 
-In futher measurements I will also use `-O3` compilation flag to get maximum of my functions. Moreover, It's interesting to try to compete with a rather smart compiler and to see, how much can I do to make my programm even more efficient then standart `-O3` version.
+In further measurements I will also use `-O3` compilation flag to get the maximum of my functions. Moreover, It's interesting to try to compete with a rather smart compiler and to see, how much can I do to make my program even more efficient than the standart `-O3` version.
 
 Now let's look at callgrind's information: 
 
 <img src="Optimisation/graphs/git/1.png">
 
-According to callgrind, hash count function uses most of the computing resources. I will try to improve this function differet ways.
+According to callgrind, the hash count function uses most of the computing resources. I will try to improve this function in differet ways.
 
 <details> 
 <summary> Standart search function realisation </summary>
@@ -210,7 +210,7 @@ long Hash_Polynom(const Word* word)
 
 ### Version 1.1 Hash count paralleling with AVX instructions
     
-Firstly, I thought that hash could be computed for several words at the same time. So, I implemented AVX version of the hash function. It gets 4 words at the same time and counts $WordText_{i} \cdot k^{i}$ for all taken words. I implemented several versions of that function, under the spoiler you can find the best one. It takes words as structures with text buffers of one common lendth, that is more or equal then the lendth of the longest word in the text. Such realisation is fast enough but implies more actions during parsing.
+Firstly, I thought that hash could be computed for several words at the same time. So, I implemented the AVX version of the hash function. It gets 4 words at the same time and counts $WordText_{i} \cdot k^{i}$ for all taken words. I implemented several versions of that function, under the spoiler you can find the best one. It takes words as structures with text buffers of one common length, that is more or equal then the length of the longest word in the text. Such realisation is fast enough but implies more actions during parsing.
     
 <details> 
 <summary> Search function realisation with AVX </summary>
@@ -309,7 +309,7 @@ bool Check_List_Entry(Hash_Table_Node* node, const size_t list_length, const Wor
 | `-O3`        |      8.4          |   1.32               | 1.32                  |
 | AVX hash     |      8.1          |   1.37               | 1.04                  |
     
-We see, our optimisation improves the performance, but not 4 times. It happened due to a plenty of memory references. Unfortunately, it was difficult for me to implement such algothm that needs only one load from memory.
+We see, our optimisation improves the performance, but not 4 times. It happened due to plenty of memory references. Unfortunately, it was difficult for me to implement such an algorithm that needs only one load from memory.
     
 
 ### Version 1.2 Hash count using AVX instruction for a single word
@@ -359,11 +359,11 @@ long Hash_Polynom_AVX_one_word(const Word* word)
 | AVX hash       |      8.1          |   1.37               | 1.04                  |
 | AVX hash 1 word|      8.4          |   1.32               | 0.96                  |
     
-We see, this optimisation has no effect. But it at least doesn't slow down the programm.
+We see this optimisation has no effect. But it at least doesn't slow down the program.
     
 ### Version 1.3 Hash count. ASM realisation
     
-After previous try I decided to implement assembler version of hash function. You can see it under the spoiler
+After a previous try, I decided to implement an assembler version of the hash function. You can see it under the spoiler
     
 <details> 
 <summary> Hash function realisation with ASM </summary>
@@ -442,11 +442,11 @@ Asm_Hash_Polynom:
 | AVX hash 1 word|      8.4          |   1.32               | 0.96                  |
 | ASM hash       |      8.8          |   1.26               | 0.95                  |
     
-We see, rewriting hash function on assembly makes performance even worse then `-O3` standart version. 
+We see, rewriting the hash function on assembly makes the performance even worse than `-O3` standard version. 
     
 ### Version 2. Optimising strcmp
     
-The second "narrow neck" of the program is strcmp. I will try to improve already improved by compiler version of strcmp
+The second "narrow neck" of the program is strcmp. I will try to improve an already improved by compiler version of strcmp
     
 
 <details> 
@@ -507,9 +507,9 @@ void Check_Entry_AVX_STRCMPAVX(Hash_Table* table, const Word words[4], bool entr
 | ASM hash       |      8.8          |   1.26               | 0.95                  |
 | AVX + strcmp   |      11.7         |   0.95               | 0.75                  |
     
-It's hard to even name it "optimisation". Although it was easy to understand that replacing strcmp with strcpy and variety of other instructions is not perfect idea.
+It's hard to even name it "optimisation". Although it was easy to understand that replacing strcmp with strcpy and a variety of other instructions is not a perfect idea.
     
-We can notice that all the words in the text has lendth not more then 20 letter. So, every word can be wholly loaded to AVX variables during parsing. In that case we can avoid long loadings from memory.
+We can notice that all the words in the text have a length of not more than 20 letters. So, every word can be wholly loaded to AVX variables during parsing. In that case, we can avoid long loadings from memory.
     
 <details> 
 <summary> strcmp improve. Second try </summary>
@@ -570,20 +570,20 @@ void Check_Entry_AVX_STRCMPAVX_NO_STRCPY(Hash_Table* table, const Word words[4],
 | AVX + strcmp          |      11.7         |   0.95               | 0.75                  |
 | AVX + strcmp no load  |      7.7          |   1.44               | 1.52                  |
     
-This optimisation definetly reached the result. 
+This optimisation definitely reached the result. 
     
 ### Intermediate conclusion
     
-I optimised two functions using most of the computing resources and improved performance by 44% comparing to base version and 9% comparing to base version compiled with `-O3` flag. 
+I optimised two functions using most of the computing resources and improved performance by 44% compared to the base version and 9% compared to the base version compiled with `-O3` flag. 
     
 Now I will try to make some cheat optimisations.
 
 
 ### Version 3. Changing hash function.
 
-I tried to improve the performance of polynom hash function. It had some effect, but it's also has sence to use hash function, which can be called from assembly directly. This is CRC32. I will not describe it's method of work, you can read about it [here](https://en.wikipedia.org/wiki/Cyclic_redundancy_check#CRCs_and_data_integrity). It's main advantage is the ability to call it directly from assembly. Certainly, hash table needs to be rebuilt with use of this function.
+I tried to improve the performance of the polynom hash function. It had some effect, but it also has a sence to use the hash function, which can be called from the assembly directly. This is CRC32. I will not describe its method of work, you can read about it [here](https://en.wikipedia.org/wiki/Cyclic_redundancy_check#CRCs_and_data_integrity). Its main advantage is the ability to call it directly from the assembly. Certainly, the hash table needs to be rebuilt with the use of this function.
 
-So we can create hash function with inline assembly:
+So we can create the hash function with inline assembly:
 
 <details> 
 <summary> CRC32 </summary>
@@ -625,7 +625,7 @@ long CRC32_Hash(const Word* word)
 | AVX + strcmp no load  |      7.7          |   1.44               | 1.52                  |
 | CRC32                 |      8.0          |   1.39               | 0.96                  |
 
-We see, changing hash function improves the performance. Now we also can add our optimised strcmp function:
+We see, changing the hash function improves the performance. Now we also can add our optimised strcmp function:
 
 | Optimisation          | Elapsed time (s)  | Absolute speeding up | Realative speeding up |
 | :-------------------: | :---------------: | :------------------: | :-------------------: |
@@ -639,11 +639,11 @@ We see, changing hash function improves the performance. Now we also can add our
 | CRC32                 |      8.0          |   1.39               | 0.96                  |
 | CRC32 + strcmp no load|      7.7          |   1.44               | 1.04                  |
 
-We got the same result as with optimised AVX version of polynom hash function with improved strcmp.
+We got the same result as with optimised AVX version of the polynom hash function with improved strcmp.
 
 ### Version 4. Increase hash table size
 
-During this work I tried to improve the performance in finding words in hash table lists with non-zero amount of collisions. Final optimisation I will do is obvious and even uninteresting. I will increase hash table size! Now it has on average 20-30 collisions a list, so we should expect that new hash table will have 2-3 collisions a list.
+During this work, I tried to improve the performance in finding words in hash table lists with a non-zero amount of collisions. The final optimisation I will do is obvious and even uninteresting. I will increase the hash table size! Now it has on average 20-30 collisions in a list, so we should expect that the new hash table will have 2-3 collisions in a list.
 
 
 | Optimisation          | Elapsed time (s)  | Absolute speeding up | Realative speeding up |
@@ -659,11 +659,11 @@ During this work I tried to improve the performance in finding words in hash tab
 | CRC32 + strcmp no load|      7.7          |   1.44               | 1.04                  |
 | AVX + strcmp no load + enlarged hash table  |      4.9          |   2.26               | 1.57                  |
 
-No we can look at callgrind's data and see that all calls are hash function. It means that amount of collisions in hash table is low enough and strcmp function is called really seldom.
+Now we can look at callgrind's data and see that all calls are hash function calls. It means that the amount of collisions in the hash table is low enough and strcmp function is called really seldom.
 
 <img src="Optimisation/graphs/git/2.png">
 
 
 ## Conclusion
 
-During this work I researched several hash functions and tried to improve hash table's performance with different kind of optimisations. It's clear now that compilation with `-O3` highly improves the performance without any additional actions from programmer. But, nevertheless, some additional enhances can be done to slightly speed up the program if it's neccessary. The best method in our case is using SIMD instructions. Unfortunately, in that work it was difficult to implement such improvements without a big amount of memory references, but in [my previous works](https://github.com/lednikita0481/SIMD) I showed some situations where using SIMD instructions can be much more efficient. So, it's clear that programmer has to be able to analyse the code and find the parts of the program which can be enhanced and give better performance.
+During this work, I researched several hash functions and tried to improve the hash table's performance with different kinds of optimisations. It's clear now that compilation with `-O3` highly improves the performance without any additional actions from a programmer. Nevertheless, some additional enhancements can be done to slightly speed up the program if it's necessary. The best method in our case is using SIMD instructions. Unfortunately, in that work, it was difficult to implement such improvements without a big amount of memory references, but in [my previous works](https://github.com/lednikita0481/SIMD) I showed some situations where using SIMD instructions can be much more efficient. So, it's clear that a programmer has to be able to analyse the code and find the parts of the program which can be enhanced and give better performance.
