@@ -1,4 +1,4 @@
-# Hash functions research and Hash table optimisation.
+# Hash functions research and Hash table optimisation
 
 ## Goals:
 - To implement a hash table
