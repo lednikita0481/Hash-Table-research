@@ -108,7 +108,7 @@ long Hash_Ror(const Word* word)
 ~~~
 
 ### 7. Polynom hash
-This function multiplies the ASCII code of every word letter \by the corresponding constant degree. So, $HASH_{n+1} = HASH_{n} + WordText_{n+1} \cdot k^{n+1}$
+This function multiplies the ASCII code of every word letter by the corresponding constant degree. So, $HASH_{n+1} = HASH_{n} + WordText_{n+1} \cdot k^{n+1}$
 > Dispersion = 28
 ~~~C++
 long Hash_Polynom(const Word* word)
