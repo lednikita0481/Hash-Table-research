@@ -1,6 +1,6 @@
 # Hash functions research and Hash table optimisation
 
-## Goals:
+## The goals:
 - To implement a hash table
 - To test several hash functions for distribution uniformity
 - To research the hash table and implement at least 3 optimisations in different ways
